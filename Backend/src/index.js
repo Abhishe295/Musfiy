@@ -32,7 +32,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 
-app.use("/uploads", express.static("uploads"));
+app.use("/uploads",cors(), express.static("uploads"));
 app.use("/api/playlist", playlistRoutes);
 app.use("/api/stats", statsRoutes);
 app.use('/api/auth', authRoutes);
