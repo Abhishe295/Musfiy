@@ -2,7 +2,7 @@
 
 import Track from "../models/trackModel.js";
 import userModel from "../models/userModel.js";
-import { normalizeMood } from "../utils/moodutils.js";
+import { normalizeMood } from "../utils/moodUtils.js";
 import Groq from "groq-sdk";
 import { pickGroqModel } from "../utils/groqModelPicker.js";
 
