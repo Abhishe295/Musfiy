@@ -7,6 +7,8 @@ import trackRoutes from './routes/trackRoutes.js';
 import playlistRoutes from "./routes/playlistRoutes.js";
 import statsRoutes from "./routes/statsRoutes.js";
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 
 
@@ -27,12 +29,27 @@ app.use(cors({
   credentials: true,
 }));
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const isRender = process.env.RENDER === "true";
+
+let uploadsPath = "";
+
+if (isRender) {
+  uploadsPath = "/opt/render/project/src/uploads";
+} else {
+  uploadsPath = path.join(__dirname, "..", "uploads");
+}
+
+console.log("SERVING UPLOADS FROM:", uploadsPath);
+
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 
-app.use("/uploads",cors(), express.static("uploads"));
+app.use("/uploads",cors(), express.static(uploadsPath));
 app.use("/api/playlist", playlistRoutes);
 app.use("/api/stats", statsRoutes);
 app.use('/api/auth', authRoutes);
