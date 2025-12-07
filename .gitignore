@@ -64,5 +64,5 @@ frontend/.vite/
 # BACKEND (Node / Express)
 # ===========================
 backend/node_modules/
-backend/uploads/
+
 backend/temp/
