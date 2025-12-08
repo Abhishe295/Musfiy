@@ -10,6 +10,7 @@ import {
   Repeat,
 } from "lucide-react";
 import { usePlayerStore } from "../stores/usePlayerStore";
+import api from '../lib/api.js';
 
 const AudioPlayer = () => {
   const audioRef = useRef(null);
@@ -21,6 +22,7 @@ const AudioPlayer = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [loop, setLoop] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
+  const [tracked,setTracked] = useState(false);
 
   // Zustand Player Store
   const { currentTrack, isPlaying, next, prev, shuffle } = usePlayerStore();
@@ -129,6 +131,11 @@ useEffect(() => {
     audio.currentTime = percent * duration;
     setIsSeeking(false);
   };
+
+  useEffect(() => {
+  setTracked(false); // reset when new track loads
+}, [currentTrack]);
+
 
   if (!currentTrack) return null;
 
@@ -260,6 +267,17 @@ useEffect(() => {
             : ""
         }
         onEnded={next}
+        onPlay={async () => {
+          if (!tracked && currentTrack?._id) {
+            setTracked(true); 
+            try {
+              await api.post(`/api/track/play/${currentTrack._id}`);
+            } catch (err) {
+              console.log("Play tracking failed:", err);
+            }
+          }
+        }}
+
       />
     </div>
   );

@@ -113,10 +113,10 @@ ${trackListText}
     });
 
     // Update usage counters
-    for (let t of selectedTracks) {
-      t.timesUsed++;
-      await t.save();
-    }
+    // for (let t of selectedTracks) {
+    //   t.timesUsed++;
+    //   await t.save();
+    // }
 
     res.status(200).json({ success: true, playlist: selectedTracks });
   } catch (err) {

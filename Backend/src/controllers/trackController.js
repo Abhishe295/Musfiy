@@ -131,5 +131,18 @@ export const deleteTrack = async (req, res) => {
   }
 };
 
+export const timePlayed = async (req, res) => {
+  try {
+    const track = await Track.findById(req.params.id);
+    if (!track) return res.status(404).json({ success: false });
+
+    track.timesUsed++;
+    await track.save();
+
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false });
+  }
+}
 
 
