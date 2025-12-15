@@ -13,11 +13,9 @@ const TrackCard = ({ track }) => {
   const isTrackPlaying = isCurrent && isPlaying;
 
   const handlePlay = () => {
-    // If clicking the currently playing track, toggle play/pause
     if (isCurrent) {
       usePlayerStore.setState((s) => ({ isPlaying: !s.isPlaying }));
     } else {
-      // Otherwise, set full queue and play selected track
       setQueue(allTracks);
       playTrack(track);
     }
