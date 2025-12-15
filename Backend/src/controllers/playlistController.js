@@ -1,5 +1,3 @@
-// src/controllers/playlistController.js
-
 import Track from "../models/trackModel.js";
 import userModel from "../models/userModel.js";
 import { normalizeMood } from "../utils/moodUtils.js";
@@ -8,7 +6,7 @@ import { pickGroqModel } from "../utils/groqModelPicker.js";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// Cached model for performance
+// ---------------- MODEL CACHE ----------------
 let cachedModel = null;
 let cachedAt = 0;
 const CACHE_TTL = 60 * 1000;
@@ -24,6 +22,7 @@ async function getGroqModel() {
   return cachedModel;
 }
 
+// ---------------- CONTROLLER ----------------
 export const generatePlaylist = async (req, res) => {
   try {
     const { moodPrompt } = req.body;
@@ -35,27 +34,46 @@ export const generatePlaylist = async (req, res) => {
         .json({ success: false, message: "Mood prompt required" });
     }
 
-    // Normalize mood → ["romantic", "sad"]
+    // 1️⃣ Normalize mood
     const moods = normalizeMood(moodPrompt);
 
-    // Filter by mood tags
-    const tracks = await Track.find({ emotionTag: { $in: moods } });
+    // 2️⃣ Fetch tracks by mood
+    let tracks = await Track.find({ emotionTag: { $in: moods } });
 
-    const trackPool =
-      tracks.length >= 6 ? tracks : await Track.find(); // fallback
+    // Ensure minimum pool size
+    if (tracks.length < 10) {
+      tracks = await Track.find().limit(25);
+    }
 
-    const trackListText = trackPool
-      .map((t) => `${t.title} by ${t.artist} [${t.emotionTag}]`)
+    if (!tracks.length) {
+      return res
+        .status(400)
+        .json({ success: false, message: "No tracks available" });
+    }
+
+    // 3️⃣ Build song list for AI
+    const trackListText = tracks
+      .map((t) => `${t.title} by ${t.artist}`)
       .join("\n");
 
+    // 4️⃣ STRICT PROMPT (NO EXPLANATIONS ALLOWED)
     const prompt = `
-Generate a playlist based on moods: ${moods.join(", ")}.
-Pick 3–6 songs from the list.
+You are given a list of songs.
 
-Return ONLY JSON:
+STRICT RULES (MUST FOLLOW):
+- Choose ONLY from the Song List below
+- Return ONLY song TITLES
+- Each array element MUST be a single song title string
+- NO explanations
+- NO extra text
+- NO comments
+- NO reasoning
+- If unsure, still pick from the list
+
+Return ONLY valid JSON in EXACT format:
 
 {
-  "tracks": ["Song1", "Song2", "Song3"]
+  "tracks": ["Song Title 1", "Song Title 2", "Song Title 3"]
 }
 
 Song List:
@@ -64,42 +82,81 @@ ${trackListText}
 
     const modelId = await getGroqModel();
 
-    const completion = await groq.chat.completions.create({
-      model: modelId,
-      messages: [
-        { role: "system", content: "Return ONLY valid JSON." },
-        { role: "user", content: prompt },
-      ],
-      temperature: 0.2,
-    });
+    // 5️⃣ Call AI (retry once if invalid)
+    let parsed = null;
+    let raw = "";
 
-    const raw = completion.choices[0].message.content;
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const completion = await groq.chat.completions.create({
+        model: modelId,
+        temperature: 0,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You output ONLY valid JSON. No explanations. No extra text.",
+          },
+          { role: "user", content: prompt },
+        ],
+      });
 
-    if (!jsonMatch) {
-      return res
-        .status(500)
-        .json({ success: false, message: "Invalid AI JSON" });
+      raw = completion.choices[0].message.content?.trim();
+      console.log("🧠 AI RAW OUTPUT:\n", raw);
+
+      try {
+        parsed = JSON.parse(raw);
+        if (Array.isArray(parsed.tracks)) break;
+      } catch {
+        if (attempt === 2) throw new Error("Invalid AI JSON");
+      }
     }
 
-    const parsed = JSON.parse(jsonMatch[0]);
-    let playlistTitles = [...new Set(parsed.tracks.map((t) => t.trim()))].slice(
-      0,
-      6
-    );
+    // 6️⃣ SANITIZE AI OUTPUT
+    const cleanTitles = parsed.tracks
+      .filter((t) => typeof t === "string")
+      .map((t) => t.trim())
+      .filter(
+        (t) =>
+          t.length > 0 &&
+          !t.toLowerCase().includes("not found") &&
+          !t.toLowerCase().includes("selecting")
+      );
 
+    const playlistTitles = [...new Set(cleanTitles)].slice(0, 6);
+
+    // 7️⃣ If AI still fails → fallback (NO EMPTY PLAYLISTS)
     if (playlistTitles.length < 3) {
-      return res.status(400).json({
-        success: false,
-        message: "Not enough valid songs",
+      console.warn("⚠️ AI failed, using fallback playlist");
+
+      const shuffled = [...tracks].sort(() => 0.5 - Math.random());
+      const fallbackTracks = shuffled.slice(0, 5);
+
+      return res.status(200).json({
+        success: true,
+        playlist: fallbackTracks,
+        fallback: true,
       });
     }
 
+    // 8️⃣ Fetch actual tracks from DB
     const selectedTracks = await Track.find({
       title: { $in: playlistTitles },
     });
 
-    // Save to user history
+    if (selectedTracks.length < 3) {
+      console.warn("⚠️ Title mismatch, using fallback playlist");
+
+      const shuffled = [...tracks].sort(() => 0.5 - Math.random());
+      const fallbackTracks = shuffled.slice(0, 5);
+
+      return res.status(200).json({
+        success: true,
+        playlist: fallbackTracks,
+        fallback: true,
+      });
+    }
+
+    // 9️⃣ Save to user history
     await userModel.findByIdAndUpdate(userId, {
       $push: {
         generatedMixes: {
@@ -112,15 +169,15 @@ ${trackListText}
       },
     });
 
-    // Update usage counters
-    // for (let t of selectedTracks) {
-    //   t.timesUsed++;
-    //   await t.save();
-    // }
-
-    res.status(200).json({ success: true, playlist: selectedTracks });
+    // 🔟 Respond
+    return res.status(200).json({
+      success: true,
+      playlist: selectedTracks,
+    });
   } catch (err) {
     console.error("Playlist Error:", err);
-    res.status(500).json({ success: false, message: "Internal Error" });
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal Error" });
   }
 };

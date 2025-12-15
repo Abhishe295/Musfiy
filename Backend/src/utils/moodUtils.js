@@ -1,4 +1,8 @@
+// src/utils/moodUtils.js
+
 export function normalizeMood(input) {
+  if (!input || typeof input !== "string") return ["general"];
+
   const text = input.toLowerCase();
 
   const moodMap = {
@@ -7,17 +11,22 @@ export function normalizeMood(input) {
     sad: ["sad", "cry", "melancholy", "lonely", "pain", "down"],
     energetic: ["gym", "workout", "hype", "party", "dance", "angry", "rage"],
     chill: ["calm", "relax", "focus", "study", "lofi", "chill", "peaceful"],
-    night: ["night", "drive", "dark", "midnight", "lonely night"],
-    heartbreak: ["breakup", "heartbreak", "lost", "hurt"]
+    night: ["night", "drive", "dark", "midnight"],
+    heartbreak: ["breakup", "heartbreak", "lost", "hurt"],
   };
 
-  let result = [];
+  const detected = [];
 
   for (const mood in moodMap) {
-    if (moodMap[mood].some((keyword) => text.includes(keyword))) {
-      result.push(mood);
+    for (const keyword of moodMap[mood]) {
+      if (text.includes(keyword)) {
+        detected.push(mood);
+        break;
+      }
     }
   }
 
-  return result.length ? result : ["general"];
+  // Deduplicate + fallback
+  const unique = [...new Set(detected)];
+  return unique.length ? unique : ["general"];
 }
