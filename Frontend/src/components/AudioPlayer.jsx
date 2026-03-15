@@ -257,28 +257,21 @@ useEffect(() => {
 
       {/* AUDIO ELEMENT */}
       <audio
-        ref={audioRef}
-        loop={loop}
-        src={
-          currentTrack.fileUrl
-            ? import.meta.env.MODE === "development"
-              ? `http://localhost:6001${currentTrack.fileUrl}`
-              : `${import.meta.env.VITE_BACKEND_URL}${currentTrack.fileUrl}`
-            : ""
-        }
-        onEnded={next}
-        onPlay={async () => {
-          if (!tracked && currentTrack?._id) {
-            setTracked(true); 
-            try {
-              await api.post(`/api/track/play/${currentTrack._id}`);
-            } catch (err) {
-              console.log("Play tracking failed:", err);
-            }
-          }
-        }}
-
-      />
+  ref={audioRef}
+  loop={loop}
+  src={currentTrack.fileUrl || ""}
+  onEnded={next}
+  onPlay={async () => {
+    if (!tracked && currentTrack?._id) {
+      setTracked(true);
+      try {
+        await api.post(`/api/track/play/${currentTrack._id}`);
+      } catch (err) {
+        console.log("Play tracking failed:", err);
+      }
+    }
+  }}
+/>
     </div>
   );
 };

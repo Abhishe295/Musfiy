@@ -2,7 +2,8 @@ import Track from "../models/trackModel.js";
 import userModel from "../models/userModel.js";
 import fs from "fs";
 import path from "path";
-
+import cloudinary from "../config/cloudinary.js";
+import streamifier from "streamifier";
 
 export const getAllTracks = async (req, res) => {
   try {
@@ -42,7 +43,25 @@ export const uploadTrack = async (req, res) => {
       return res.status(400).json({ success: false, message: "No file uploaded" });
     }
 
-    const fileUrl = `/uploads/music/${req.file.filename}`;
+    const uploadStream = () =>
+      new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            resource_type: "video",
+            folder: "musify_tracks",
+          },
+          (error, result) => {
+            if (result) resolve(result);
+            else reject(error);
+          }
+        );
+
+        streamifier.createReadStream(req.file.buffer).pipe(stream);
+      });
+
+    const result = await uploadStream();
+
+    const fileUrl = result.secure_url;
 
     const newTrack = await Track.create({
       title,
