@@ -21,10 +21,11 @@ export const getTopTracks = async (req, res) => {
       });
     }
 
-    // 2️⃣ Fetch from DB
+    // 2️⃣ Fetch from DB (indexed on timesUsed, .lean() since it's read-only)
     const tracks = await Track.find()
       .sort({ timesUsed: -1 })
-      .limit(10);
+      .limit(10)
+      .lean();
 
     if (tracks.length === 0) {
       return res.status(200).json({

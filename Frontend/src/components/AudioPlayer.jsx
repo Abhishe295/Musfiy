@@ -259,6 +259,7 @@ useEffect(() => {
       <audio
   ref={audioRef}
   loop={loop}
+  preload="metadata"
   src={currentTrack.fileUrl || ""}
   onEnded={next}
   onPlay={async () => {

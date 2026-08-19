@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import MoodInput from "../components/MoodInput";
 import PlaylistCard from "../components/PlaylistCard";
 import TrackCard from "../components/TrackCard";
@@ -9,19 +9,71 @@ import AudioPlayer from "../components/AudioPlayer";
 import { useTrackStore } from "../stores/useTrackStore";
 import { useStatsStore } from "../stores/useStatsStore";
 import { usePlaylistStore } from "../stores/usePlaylistStore";
-import { Menu, X } from "lucide-react";
+import { usePlayerStore } from "../stores/usePlayerStore";
+import { Menu, X, Loader2 } from "lucide-react";
 import Stats from "./Stats";
+
+// Lightweight placeholder rows shown only while the very first batch of
+// tracks is loading — never blocks the rest of the page.
+const TrackListSkeleton = () => (
+  <div className="space-y-2">
+    {Array.from({ length: 6 }).map((_, i) => (
+      <div
+        key={i}
+        className="animate-pulse flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-base-200"
+      >
+        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl bg-base-300 flex-shrink-0" />
+        <div className="flex-1 min-w-0 space-y-2">
+          <div className="h-3 sm:h-4 w-1/3 rounded bg-base-300" />
+          <div className="h-2.5 sm:h-3 w-1/5 rounded bg-base-300" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
 
 const Dashboard = () => {
   const { playlist } = usePlaylistStore();
-  const { allTracks, fetchAllTracks } = useTrackStore();
+  const { allTracks, loading, loadingMore, hasMore, fetchAllTracks, loadMoreTracks } =
+    useTrackStore();
   const { fetchTopTracks } = useStatsStore();
+  const appendToQueue = usePlayerStore((s) => s.appendToQueue);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const loadMoreRef = useRef(null);
 
+  // Phase 1: kick off the first (small) batch of tracks and the top-tracks
+  // stats independently — neither one waits on the other, and neither
+  // blocks the shell/nav from rendering.
   useEffect(() => {
     fetchAllTracks();
     fetchTopTracks();
   }, []);
+
+  // If the currently playing queue was built from the library, silently
+  // extend it as more batches arrive so "next" keeps working across the
+  // whole library without ever resetting the current track.
+  useEffect(() => {
+    appendToQueue(allTracks);
+  }, [allTracks, appendToQueue]);
+
+  // Phase 2: background-load subsequent batches as the user scrolls near
+  // the bottom of the track list, instead of fetching everything upfront.
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMoreTracks();
+        }
+      },
+      { rootMargin: "200px" }
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [loadMoreTracks, allTracks.length]);
 
   return (
     <div className="relative min-h-[calc(100vh-64px)]">
@@ -84,17 +136,42 @@ const Dashboard = () => {
               </h2>
             </div>
 
-            <div className="space-y-2">
-              {allTracks.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-base-content/60">No tracks available</p>
+            {loading ? (
+              <TrackListSkeleton />
+            ) : allTracks.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-base-content/60">No tracks available</p>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  {allTracks.map((track) => (
+                    <TrackCard key={track._id} track={track} />
+                  ))}
                 </div>
-              ) : (
-                allTracks.map((track) => (
-                  <TrackCard key={track._id} track={track} />
-                ))
-              )}
-            </div>
+
+                {/* Sentinel for infinite-scroll background loading of the
+                    next batch, plus a manual fallback for users who land
+                    right on it before it scrolls into view. */}
+                {hasMore && (
+                  <div ref={loadMoreRef} className="flex justify-center py-4">
+                    {loadingMore ? (
+                      <div className="flex items-center gap-2 text-sm text-base-content/60">
+                        <Loader2 size={16} className="animate-spin" />
+                        Loading more tracks...
+                      </div>
+                    ) : (
+                      <button
+                        onClick={loadMoreTracks}
+                        className="btn btn-sm btn-ghost text-base-content/60"
+                      >
+                        Load more
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           {/* Upload Section */}

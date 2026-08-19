@@ -5,13 +5,52 @@ import path from "path";
 import cloudinary from "../config/cloudinary.js";
 import streamifier from "streamifier";
 
+// Sensible batch-size guardrails so a caller can't request the whole
+// library in one shot (which was the root cause of the slow initial load).
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
+
+const parsePagination = (req) => {
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  const limit = Math.min(
+    Math.max(parseInt(req.query.limit, 10) || DEFAULT_PAGE_SIZE, 1),
+    MAX_PAGE_SIZE
+  );
+  return { page, limit, skip: (page - 1) * limit };
+};
+
 export const getAllTracks = async (req, res) => {
   try {
-    const tracks = await Track.find().sort({ createdAt: -1 });
+    const { page, limit, skip } = parsePagination(req);
+
+    // .lean() skips Mongoose document hydration since we're only ever
+    // reading this data for display -> cheaper to serialize, faster response.
+    const tracksQuery = Track.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit + 1) // fetch one extra to cheaply know if there's another page
+      .lean();
+
+    const tracks = await tracksQuery;
+
+    const hasMore = tracks.length > limit;
+    if (hasMore) tracks.pop(); // drop the lookahead doc before responding
+
+    // Only compute the (relatively expensive) full collection count on the
+    // very first page, and only because the UI can make use of it — we don't
+    // want a countDocuments() call on every single page request.
+    let totalCount;
+    if (page === 1) {
+      totalCount = await Track.estimatedDocumentCount();
+    }
 
     return res.status(200).json({
       success: true,
       tracks,
+      page,
+      limit,
+      hasMore,
+      ...(totalCount !== undefined && { totalCount }),
     });
   } catch (error) {
     console.log(error);
@@ -23,11 +62,23 @@ export const getEmotionTracks = async (req, res) => {
   const { emotion } = req.params;
 
   try {
-    const tracks = await Track.find({ emotionTag: emotion });
+    const { page, limit, skip } = parsePagination(req);
+
+    const tracks = await Track.find({ emotionTag: emotion })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit + 1)
+      .lean();
+
+    const hasMore = tracks.length > limit;
+    if (hasMore) tracks.pop();
 
     return res.status(200).json({
       success: true,
       tracks,
+      page,
+      limit,
+      hasMore,
     });
   } catch (error) {
     console.log(error);
@@ -152,11 +203,14 @@ export const deleteTrack = async (req, res) => {
 
 export const timePlayed = async (req, res) => {
   try {
-    const track = await Track.findById(req.params.id);
+    // Atomic increment: one round trip instead of find() + save(),
+    // and avoids two concurrent plays racing on the same document.
+    const track = await Track.findByIdAndUpdate(
+      req.params.id,
+      { $inc: { timesUsed: 1 } },
+      { new: true }
+    );
     if (!track) return res.status(404).json({ success: false });
-
-    track.timesUsed++;
-    await track.save();
 
     return res.json({ success: true });
   } catch (err) {

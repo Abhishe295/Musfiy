@@ -37,12 +37,15 @@ export const generatePlaylist = async (req, res) => {
     // 1️⃣ Normalize mood
     const moods = normalizeMood(moodPrompt);
 
-    // 2️⃣ Fetch tracks by mood
-    let tracks = await Track.find({ emotionTag: { $in: moods } });
+    // 2️⃣ Fetch tracks by mood (capped candidate pool — we only need enough
+    // songs to build a reasonable prompt for the model, not the whole library)
+    let tracks = await Track.find({ emotionTag: { $in: moods } })
+      .limit(60)
+      .lean();
 
     // Ensure minimum pool size
     if (tracks.length < 10) {
-      tracks = await Track.find().limit(25);
+      tracks = await Track.find().limit(25).lean();
     }
 
     if (!tracks.length) {
@@ -141,7 +144,7 @@ ${trackListText}
     // 8️⃣ Fetch actual tracks from DB
     const selectedTracks = await Track.find({
       title: { $in: playlistTitles },
-    });
+    }).lean();
 
     if (selectedTracks.length < 3) {
       console.warn("⚠️ Title mismatch, using fallback playlist");

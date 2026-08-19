@@ -16,7 +16,7 @@ const TrackCard = ({ track }) => {
     if (isCurrent) {
       usePlayerStore.setState((s) => ({ isPlaying: !s.isPlaying }));
     } else {
-      setQueue(allTracks);
+      setQueue(allTracks, "library");
       playTrack(track);
     }
   };

@@ -13,7 +13,7 @@ const PlaylistCard = ({ playlist }) => {
       usePlayerStore.setState((s) => ({ isPlaying: !s.isPlaying }));
     } else {
       // Otherwise, set queue and play new track
-      setQueue(playlist);
+      setQueue(playlist, "playlist");
       playTrack(track);
     }
   };

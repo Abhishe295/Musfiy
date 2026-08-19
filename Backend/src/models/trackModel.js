@@ -53,6 +53,15 @@ const trackSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Supports the paginated "all tracks" query (sort by newest first)
+trackSchema.index({ createdAt: -1 });
+
+// Supports emotion-based filtering (getEmotionTracks + AI playlist mood matching)
+trackSchema.index({ emotionTag: 1 });
+
+// Supports the top-tracks/leaderboard query (sort by usage descending)
+trackSchema.index({ timesUsed: -1 });
+
 const Track = mongoose.models.Track || mongoose.model("Track", trackSchema);
 
 export default Track;
