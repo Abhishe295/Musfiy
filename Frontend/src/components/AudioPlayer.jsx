@@ -9,9 +9,11 @@ import {
   VolumeX,
   Repeat,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { usePlayerStore } from "../stores/usePlayerStore";
 import api from '../lib/api.js';
 import Waveform from "./Waveform";
+import AudioVisualizer from "./AudioVisualizer";
 
 const AudioPlayer = () => {
   const audioRef = useRef(null);
@@ -23,7 +25,7 @@ const AudioPlayer = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [loop, setLoop] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
-  const [tracked,setTracked] = useState(false);
+  const [tracked, setTracked] = useState(false);
 
   // Zustand Player Store
   const { currentTrack, isPlaying, next, prev, shuffle } = usePlayerStore();
@@ -101,34 +103,31 @@ const AudioPlayer = () => {
   }, [isSeeking]);
 
   // 🔥 Keyboard shortcuts
-useEffect(() => {
-  const handler = (e) => {
-    const active = document.activeElement;
+  useEffect(() => {
+    const handler = (e) => {
+      const active = document.activeElement;
 
-    // If user is typing in an input/textarea, DO NOT block space
-    if (
-      active &&
-      (active.tagName === "INPUT" ||
-        active.tagName === "TEXTAREA" ||
-        active.isContentEditable)
-    ) {
-      return; // allow typing normally
-    }
+      if (
+        active &&
+        (active.tagName === "INPUT" ||
+          active.tagName === "TEXTAREA" ||
+          active.isContentEditable)
+      ) {
+        return;
+      }
 
-    // Global shortcuts
-    if (e.code === "Space") {
-      e.preventDefault();
-      usePlayerStore.setState((s) => ({ isPlaying: !s.isPlaying }));
-    }
-    if (e.code === "ArrowRight") next();
-    if (e.code === "ArrowLeft") prev();
-    if (e.code === "KeyM") toggleMute();
-  };
+      if (e.code === "Space") {
+        e.preventDefault();
+        usePlayerStore.setState((s) => ({ isPlaying: !s.isPlaying }));
+      }
+      if (e.code === "ArrowRight") next();
+      if (e.code === "ArrowLeft") prev();
+      if (e.code === "KeyM") toggleMute();
+    };
 
-  window.addEventListener("keydown", handler);
-  return () => window.removeEventListener("keydown", handler);
-}, []);
-
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   // Format time
   const fmt = (t) =>
@@ -177,8 +176,8 @@ useEffect(() => {
   };
 
   useEffect(() => {
-  setTracked(false); // reset when new track loads
-}, [currentTrack]);
+    setTracked(false); // reset when new track loads
+  }, [currentTrack]);
 
   // --- Predictive prefetching engine ---
   // Whenever the current track changes: (1) log the transition from the
@@ -218,9 +217,6 @@ useEffect(() => {
         // Predictions are a nice-to-have; never let a failure touch playback.
       }
 
-      // Cold start (no history for this track yet) -> fall back to
-      // whatever's deterministically next in the queue, which is the
-      // most likely thing to play regardless of prediction data.
       if (!nextUrl) {
         const { queue, currentIndex } = usePlayerStore.getState();
         const fallback = queue[currentIndex + 1];
@@ -229,8 +225,6 @@ useEffect(() => {
 
       if (nextUrl && !prefetchedUrlsRef.current.has(nextUrl)) {
         prefetchedUrlsRef.current.add(nextUrl);
-        // no-cors: we don't need to read the response, just get the browser
-        // to pull it into its HTTP cache ahead of time.
         fetch(nextUrl, { mode: "no-cors" }).catch(() => {});
       }
     });
@@ -238,15 +232,76 @@ useEffect(() => {
     return () => cancelIdle(idleHandle);
   }, [currentTrack]);
 
+  // --- Real-time audio visualizer (Web Audio AnalyserNode) ---
+  // Built once, on the same <audio> element, and reused across every
+  // track change (a MediaElementAudioSourceNode can only ever be created
+  // once per element). Wrapped defensively: if the browser or the CDN
+  // response doesn't cooperate with cross-origin analysis, this silently
+  // disables itself — it must NEVER be able to break actual playback.
+  const [analyser, setAnalyser] = useState(null);
+  const [corsBlocked, setCorsBlocked] = useState(false);
+  const audioCtxRef = useRef(null);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || audioCtxRef.current) return;
+
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AudioContextClass();
+      const source = ctx.createMediaElementSource(audio);
+      const node = ctx.createAnalyser();
+      node.fftSize = 64;
+      source.connect(node);
+      node.connect(ctx.destination);
+
+      audioCtxRef.current = ctx;
+      setAnalyser(node);
+    } catch (err) {
+      console.log("Audio visualizer unavailable (non-fatal):", err.message);
+    }
+
+    return () => {
+      audioCtxRef.current?.close().catch(() => {});
+    };
+  }, []);
+
+  // Resume the AudioContext on the first real play (browsers suspend it
+  // until a user gesture).
+  useEffect(() => {
+    if (isPlaying && audioCtxRef.current?.state === "suspended") {
+      audioCtxRef.current.resume().catch(() => {});
+    }
+  }, [isPlaying]);
+
+  // If corsBlocked just flipped on (see onError below), the crossOrigin
+  // attribute was already removed by the re-render, but the element won't
+  // re-fetch on its own — force a reload so the same track actually plays
+  // in the fallback (non-analyzable) mode instead of staying stuck on error.
+  const isFirstCorsCheck = useRef(true);
+  useEffect(() => {
+    if (isFirstCorsCheck.current) {
+      isFirstCorsCheck.current = false;
+      return;
+    }
+    const audio = audioRef.current;
+    if (!audio || !corsBlocked) return;
+
+    const wasPlaying = usePlayerStore.getState().isPlaying;
+    audio.load();
+    if (wasPlaying) {
+      audio.play().catch(() => {});
+    }
+  }, [corsBlocked]);
 
   if (!currentTrack) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 w-full bg-gradient-to-t from-base-300 to-base-200 backdrop-blur-xl border-t border-base-300 shadow-2xl z-50">
+    <div className="fixed bottom-0 left-0 w-full bg-base-100/90 backdrop-blur-2xl border-t border-base-content/[0.06] z-50">
 
       {/* ▬▬▬▬▬ PROGRESS BAR / WAVEFORM ▬▬▬▬▬ */}
       {currentTrack.waveformPeaks?.length > 0 ? (
-        <div className="w-full bg-base-300/50">
+        <div className="w-full">
           <Waveform
             peaks={currentTrack.waveformPeaks}
             currentTime={currentTime}
@@ -256,76 +311,89 @@ useEffect(() => {
         </div>
       ) : (
         <div
-          className="w-full h-1.5 bg-base-300 cursor-pointer relative group"
+          className="w-full h-1 bg-base-300 cursor-pointer relative group"
           onMouseDown={() => setIsSeeking(true)}
           onMouseUp={commitSeek}
           onClick={commitSeek}
           onMouseMove={(e) => isSeeking && handleSeek(e)}
         >
           <div
-            className="h-full bg-gradient-to-r from-primary to-secondary transition-all relative"
+            className="h-full bg-gradient-to-r from-primary to-secondary relative"
             style={{ width: `${(currentTime / duration) * 100}%` }}
           >
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-primary rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"></div>
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-primary rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
           </div>
         </div>
       )}
 
       {/* ▬▬▬▬▬ MAIN PLAYER UI ▬▬▬▬▬ */}
-      <div className="px-3 sm:px-5 lg:px-6 py-2 sm:py-3 flex items-center justify-between gap-3 sm:gap-4">
+      <div className="px-3 sm:px-5 lg:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-3 sm:gap-4">
 
-        {/* 🎵 Track Info - Hidden on mobile */}
+        {/* 🎵 Track Info + real-time visualizer - Hidden on mobile */}
         <div className="hidden sm:flex items-center gap-3 w-1/3 overflow-hidden">
-          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-xl sm:text-2xl shadow-lg flex-shrink-0">
+          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-xl sm:text-2xl flex-shrink-0">
             🎵
           </div>
           <div className="truncate flex-1 min-w-0">
-            <h3 className="font-bold text-sm sm:text-base truncate">{currentTrack.title}</h3>
-            <p className="text-xs opacity-70 truncate">{currentTrack.artist}</p>
+            <h3 className="font-semibold text-sm sm:text-base truncate">{currentTrack.title}</h3>
+            <p className="text-xs text-base-content/50 truncate">{currentTrack.artist}</p>
           </div>
+          <AudioVisualizer analyser={analyser} isPlaying={isPlaying} />
         </div>
 
         {/* 🎛 Controls */}
         <div className="flex flex-col items-center gap-1 w-full sm:w-1/3">
           <div className="flex items-center gap-2 sm:gap-3 lg:gap-4">
 
-            <button 
-              onClick={shuffle} 
-              className="btn btn-xs sm:btn-sm btn-ghost btn-circle hover:bg-primary/20 hover:text-primary transition-all hidden sm:flex"
+            <button
+              onClick={shuffle}
+              className="btn btn-xs sm:btn-sm btn-ghost btn-circle hover:text-primary hidden sm:flex"
             >
               <Shuffle size={16} className="sm:w-[18px] sm:h-[18px]" />
             </button>
 
-            <button 
-              onClick={prev} 
-              className="btn btn-sm btn-ghost btn-circle hover:bg-primary/20 hover:text-primary transition-all"
+            <button
+              onClick={prev}
+              className="btn btn-sm btn-ghost btn-circle hover:text-primary"
             >
               <SkipBack size={18} className="sm:w-[20px] sm:h-[20px]" />
             </button>
 
-            <button
-              className="btn btn-circle bg-gradient-to-br from-primary to-secondary border-none hover:scale-110 transition-transform shadow-lg hover:shadow-primary/50 w-12 h-12 sm:w-14 sm:h-14"
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              className="btn btn-circle bg-gradient-to-br from-primary to-secondary border-none w-12 h-12 sm:w-14 sm:h-14"
               onClick={() =>
                 usePlayerStore.setState((s) => ({ isPlaying: !s.isPlaying }))
               }
             >
-              {isPlaying ? (
-                <Pause size={24} fill="currentColor" className="sm:w-[28px] sm:h-[28px]" />
-              ) : (
-                <Play size={24} fill="currentColor" className="sm:w-[28px] sm:h-[28px]" />
-              )}
-            </button>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={isPlaying ? "pause" : "play"}
+                  initial={{ opacity: 0, scale: 0.6, rotate: -30 }}
+                  animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                  exit={{ opacity: 0, scale: 0.6, rotate: 30 }}
+                  transition={{ duration: 0.15 }}
+                  className="flex items-center justify-center"
+                >
+                  {isPlaying ? (
+                    <Pause size={24} fill="currentColor" className="sm:w-[28px] sm:h-[28px]" />
+                  ) : (
+                    <Play size={24} fill="currentColor" className="sm:w-[28px] sm:h-[28px]" />
+                  )}
+                </motion.span>
+              </AnimatePresence>
+            </motion.button>
 
-            <button 
-              onClick={next} 
-              className="btn btn-sm btn-ghost btn-circle hover:bg-primary/20 hover:text-primary transition-all"
+            <button
+              onClick={next}
+              className="btn btn-sm btn-ghost btn-circle hover:text-primary"
             >
               <SkipForward size={18} className="sm:w-[20px] sm:h-[20px]" />
             </button>
 
             <button
-              className={`btn btn-xs sm:btn-sm btn-ghost btn-circle transition-all hidden sm:flex ${
-                loop ? "text-primary bg-primary/20" : "hover:bg-primary/20 hover:text-primary"
+              className={`btn btn-xs sm:btn-sm btn-ghost btn-circle hidden sm:flex ${
+                loop ? "text-primary bg-primary/15" : "hover:text-primary"
               }`}
               onClick={() => setLoop(!loop)}
             >
@@ -333,16 +401,16 @@ useEffect(() => {
             </button>
           </div>
 
-          <div className="text-xs font-mono opacity-70 mt-1">
+          <div className="text-[11px] font-mono text-base-content/50 mt-0.5 tabular-nums">
             {fmt(currentTime)} / {fmt(duration)}
           </div>
         </div>
 
         {/* 🔊 Volume - Hidden on mobile */}
         <div className="hidden sm:flex items-center gap-2 lg:gap-3 w-1/3 justify-end">
-          <button 
-            onClick={toggleMute} 
-            className="btn btn-xs sm:btn-sm btn-ghost btn-circle hover:bg-primary/20 hover:text-primary transition-all"
+          <button
+            onClick={toggleMute}
+            className="btn btn-xs sm:btn-sm btn-ghost btn-circle hover:text-primary"
           >
             {isMuted || volume === 0 ? (
               <VolumeX size={16} className="sm:w-[18px] sm:h-[18px]" />
@@ -370,22 +438,36 @@ useEffect(() => {
 
       {/* AUDIO ELEMENT */}
       <audio
-  ref={audioRef}
-  loop={loop}
-  preload="metadata"
-  src={currentTrack.fileUrl || ""}
-  onEnded={next}
-  onPlay={async () => {
-    if (!tracked && currentTrack?._id) {
-      setTracked(true);
-      try {
-        await api.post(`/api/track/play/${currentTrack._id}`);
-      } catch (err) {
-        console.log("Play tracking failed:", err);
-      }
-    }
-  }}
-/>
+        ref={audioRef}
+        loop={loop}
+        preload="metadata"
+        crossOrigin={corsBlocked ? undefined : "anonymous"}
+        src={currentTrack.fileUrl || ""}
+        onEnded={next}
+        onError={() => {
+          // If enabling crossOrigin (needed for the visualizer to read real
+          // frequency data) ever causes the media itself to fail loading,
+          // permanently fall back to no-CORS mode so playback always wins
+          // over the bonus visualizer.
+          if (!corsBlocked) {
+            console.log(
+              "Audio failed to load with CORS enabled — disabling the " +
+              "visualizer and retrying in normal playback mode."
+            );
+            setCorsBlocked(true);
+          }
+        }}
+        onPlay={async () => {
+          if (!tracked && currentTrack?._id) {
+            setTracked(true);
+            try {
+              await api.post(`/api/track/play/${currentTrack._id}`);
+            } catch (err) {
+              console.log("Play tracking failed:", err);
+            }
+          }
+        }}
+      />
     </div>
   );
 };

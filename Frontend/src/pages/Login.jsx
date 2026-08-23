@@ -47,7 +47,7 @@ const Login = () => {
         
 
         {/* Card */}
-        <div className="bg-gradient-to-br from-base-100 to-base-200 rounded-3xl shadow-2xl border border-base-300 p-5 sm:p-6 lg:p-8">
+        <div className="bg-base-200 rounded-3xl border border-base-content/[0.06] p-5 sm:p-6 lg:p-8">
           
           {/* Header */}
           <div className="text-center mb-5 sm:mb-6">
@@ -146,7 +146,7 @@ const Login = () => {
 
             {/* Submit Button */}
             <button
-              className={`btn btn-sm sm:btn-md bg-gradient-to-r from-primary to-secondary border-none text-white font-bold w-full shadow-lg hover:shadow-xl hover:scale-105 transition-all mt-4 sm:mt-6 ${
+              className={`btn btn-sm sm:btn-md bg-gradient-to-r from-primary to-secondary border-none text-white font-bold w-full shadow-lg transition-all mt-4 sm:mt-6 ${
                 loading ? "loading" : ""
               }`}
               onClick={handleSubmit}

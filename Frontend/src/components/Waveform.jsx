@@ -13,7 +13,7 @@ import { useId } from "react";
 // requestAnimationFrame-driven currentTime in AudioPlayer, this is what
 // makes the sweep look like it's flowing instead of stepping bar by bar.
 const VIEW_WIDTH = 1000;
-const VIEW_HEIGHT = 40;
+const VIEW_HEIGHT = 48;
 
 const Waveform = ({ peaks, currentTime, duration, onSeek }) => {
   const clipId = useId();

@@ -10,7 +10,7 @@ const Stats = () => {
   }, []);
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-br from-base-200 to-base-300 sm:rounded-2xl sm:shadow-2xl sm:border sm:border-base-300 overflow-hidden">
+    <div className="h-full flex flex-col bg-base-200 sm:rounded-2xl sm:sm:border sm:border-base-content/[0.06] overflow-hidden">
       
       {/* Header */}
       <div className="sticky top-0 z-10 bg-gradient-to-r from-primary/10 to-secondary/10 backdrop-blur-md border-b border-base-300 p-4 sm:p-6">
@@ -67,11 +67,10 @@ const Stats = () => {
                 className="group relative p-3 sm:p-4 bg-base-100 hover:bg-base-200 rounded-xl transition-all duration-300 hover:shadow-md"
               >
                 {/* Rank Badge */}
-                <div className={`absolute -left-1 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 rounded-r-xl flex items-center justify-center font-bold text-sm sm:text-base shadow-lg ${
-                  index === 0 ? 'bg-gradient-to-r from-yellow-500 to-yellow-600 text-white' :
-                  index === 1 ? 'bg-gradient-to-r from-gray-400 to-gray-500 text-white' :
-                  index === 2 ? 'bg-gradient-to-r from-orange-600 to-orange-700 text-white' :
-                  'bg-gradient-to-r from-primary to-secondary text-white'
+                <div className={`absolute -left-1 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 rounded-r-lg flex items-center justify-center font-bold text-sm sm:text-base ${
+                  index === 0
+                    ? 'bg-gradient-to-r from-primary to-secondary text-white'
+                    : 'bg-base-300 text-base-content/60'
                 }`}>
                   {track.rank}
                 </div>

@@ -68,7 +68,7 @@ const UploadTrackModal = () => {
   return (
     <>
       <button 
-        className="btn bg-gradient-to-r from-primary to-secondary border-none text-white font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 w-full"
+        className="btn bg-gradient-to-r from-primary to-secondary border-none text-white font-bold shadow-lg transition-all duration-300 w-full"
         onClick={() => setOpen(true)}
       >
         <Upload size={20} />
@@ -77,7 +77,7 @@ const UploadTrackModal = () => {
 
       {open && (
         <dialog className="modal modal-open">
-          <div className="modal-box max-w-2xl bg-gradient-to-br from-base-200 to-base-300 border border-base-300 shadow-2xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
+          <div className="modal-box max-w-2xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
             
             {/* Header */}
             <div className="bg-gradient-to-r from-primary/10 to-secondary/10 backdrop-blur-md border-b border-base-300 p-4 sm:p-5 lg:p-6 flex items-center justify-between flex-shrink-0">
@@ -220,7 +220,7 @@ const UploadTrackModal = () => {
               </button>
 
               <button 
-                className={`btn bg-gradient-to-r from-primary to-secondary border-none text-white font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all ${
+                className={`btn bg-gradient-to-r from-primary to-secondary border-none text-white font-bold shadow-lg transition-all ${
                   loading ? "loading" : ""
                 }`}
                 onClick={handleUpload}

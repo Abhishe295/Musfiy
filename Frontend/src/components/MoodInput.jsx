@@ -41,7 +41,7 @@ const MoodInput = () => {
 
         {/* Generate Button */}
         <button 
-          className="btn btn-sm sm:btn-md bg-gradient-to-r from-primary to-secondary border-none font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 px-3 sm:px-6 text-white h-9 sm:h-12 min-h-0 sm:min-h-[3rem]"
+          className="btn btn-sm sm:btn-md bg-gradient-to-r from-primary to-secondary border-none font-bold shadow-lg transition-all duration-300 px-3 sm:px-6 text-white h-9 sm:h-12 min-h-0 sm:min-h-[3rem]"
           onClick={handleSubmit}
           disabled={loading || !mood.trim()}
         >

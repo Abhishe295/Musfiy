@@ -1,17 +1,16 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
 import Navbar from "./components/Navbar";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Stats from "./pages/Stats";
 import { useAuthStore } from "./stores/useAuthStore";
 import { useEffect } from "react";
-import { useThemeStore } from "./lib/useTheme";
-import ThemePage from "./pages/ThemePage";
 import { Music2, Loader2 } from "lucide-react";
+import AmbientBackground from "./components/AmbientBackground";
 
 function App() {
   const { isAuthenticated, checkAuth, loading } = useAuthStore();
-  const { theme } = useThemeStore();
 
   useEffect(() => {
     checkAuth();
@@ -19,51 +18,36 @@ function App() {
 
   if (loading) {
     return (
-      <div data-theme={theme} className="min-h-screen w-full bg-gradient-to-br from-base-300 to-base-200 flex items-center justify-center">
-        
-        {/* Background decoration */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl animate-pulse"></div>
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-secondary/5 rounded-full blur-3xl animate-pulse"></div>
-        </div>
+      <div className="relative min-h-screen w-full bg-base-100 flex items-center justify-center overflow-hidden">
+        <AmbientBackground />
 
-        {/* Loading Content */}
         <div className="relative text-center space-y-6">
-          
-          {/* Logo with pulse animation */}
           <div className="flex justify-center">
             <div className="relative">
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-2xl animate-pulse">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-2xl">
                 <Music2 size={40} className="sm:w-12 sm:h-12 text-white" />
               </div>
-              {/* Rotating ring */}
-              <div className="absolute inset-0 rounded-2xl border-4 border-primary/30 animate-spin" style={{ animationDuration: '3s' }}></div>
+              <div
+                className="absolute inset-0 rounded-2xl border-2 border-primary/25 animate-spin"
+                style={{ animationDuration: "3s" }}
+              ></div>
             </div>
           </div>
 
-          {/* Brand Name */}
           <div>
-            <h1 className="text-4xl sm:text-5xl font-black bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent mb-2">
+            <h1 className="text-4xl sm:text-5xl font-extrabold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent mb-2 tracking-tight">
               Musify
             </h1>
-            <p className="text-sm sm:text-base text-base-content/60">
+            <p className="text-sm sm:text-base text-base-content/50">
               Your personal music experience
             </p>
           </div>
 
-          {/* Loading Spinner */}
           <div className="flex items-center justify-center gap-3">
-            <Loader2 size={20} className="animate-spin text-primary" />
-            <span className="text-sm text-base-content/70 animate-pulse">
+            <Loader2 size={18} className="animate-spin text-primary" />
+            <span className="text-sm text-base-content/50">
               Loading your session...
             </span>
-          </div>
-
-          {/* Loading dots animation */}
-          <div className="flex justify-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0ms' }}></div>
-            <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '150ms' }}></div>
-            <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '300ms' }}></div>
           </div>
         </div>
       </div>
@@ -71,7 +55,25 @@ function App() {
   }
 
   return (
-    <div data-theme={theme} className="h-full w-full">
+    <div className="relative h-full w-full bg-base-100">
+      <AmbientBackground />
+      <Toaster
+        position="bottom-center"
+        toastOptions={{
+          duration: 2600,
+          style: {
+            background: "rgb(16 16 20)",
+            color: "rgb(237 237 240)",
+            border: "1px solid rgb(255 255 255 / 0.08)",
+            borderRadius: "14px",
+            fontSize: "13px",
+            padding: "10px 16px",
+            boxShadow: "0 16px 40px -12px rgb(0 0 0 / 0.6)",
+          },
+          success: { iconTheme: { primary: "rgb(124 92 246)", secondary: "white" } },
+        }}
+      />
+
       <Navbar />
 
       <Routes>
@@ -89,8 +91,6 @@ function App() {
           path="/stats"
           element={isAuthenticated ? <Stats /> : <Navigate to="/login" replace />}
         />
-
-        <Route path="/theme" element={<ThemePage />} />
 
         <Route
           path="*"

@@ -21,7 +21,7 @@ const PlaylistCard = ({ playlist }) => {
   const isCurrentTrack = (track) => currentTrack?._id === track._id;
 
   return (
-    <div className="bg-gradient-to-br from-base-200 to-base-300 p-4 sm:p-6 rounded-2xl shadow-2xl border border-base-300 mb-4 sm:mb-6">
+    <div className="bg-base-200 p-4 sm:p-6 rounded-2xl border border-base-content/[0.06] mb-4 sm:mb-6">
       
       {/* Header */}
       <div className="flex items-center gap-3 mb-4 sm:mb-6 pb-3 sm:pb-4 border-b border-base-300">
@@ -88,7 +88,7 @@ const PlaylistCard = ({ playlist }) => {
               <button
                 className={`flex-shrink-0 btn btn-sm btn-circle transition-all duration-300 ${
                   isCurrent
-                    ? 'bg-gradient-to-br from-primary to-secondary border-none text-white shadow-lg hover:shadow-xl hover:scale-110'
+                    ? 'bg-gradient-to-br from-primary to-secondary border-none text-white shadow-lg'
                     : 'btn-ghost hover:bg-primary/10 hover:text-primary opacity-0 group-hover:opacity-100 sm:opacity-100'
                 }`}
                 onClick={(e) => {

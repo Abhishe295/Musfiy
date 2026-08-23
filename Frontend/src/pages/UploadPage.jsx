@@ -25,7 +25,7 @@ const UploadPage = () => {
         </div>
 
         {/* Upload Modal Component */}
-        <div className="bg-gradient-to-br from-base-200 to-base-300 rounded-2xl sm:rounded-3xl shadow-2xl border border-base-300 p-4 sm:p-6 lg:p-8">
+        <div className="bg-base-200 rounded-2xl sm:rounded-3xl border border-base-content/[0.06] p-4 sm:p-6 lg:p-8">
           <UploadTrackModal />
         </div>
       </div>
