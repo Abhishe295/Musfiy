@@ -34,6 +34,19 @@ export const usePlayerStore = create((set) => ({
       return { queue: [...state.queue, ...additions] };
     }),
 
+  // Explicit, user-initiated "queue all of these" — unlike appendToQueue,
+  // this isn't gated by queueSource, because it's a deliberate action
+  // (e.g. "queue all similar matches"), not an automatic background
+  // extension of an existing library scroll.
+  queueTracks: (tracks) =>
+    set((state) => {
+      if (!tracks?.length) return state;
+      const existingIds = new Set(state.queue.map((t) => t._id));
+      const additions = tracks.filter((t) => !existingIds.has(t._id));
+      if (!additions.length) return state;
+      return { queue: [...state.queue, ...additions] };
+    }),
+
   // 🔥 IMPORTANT FIX: locate index correctly
   playTrack: (track) =>
     set((state) => {

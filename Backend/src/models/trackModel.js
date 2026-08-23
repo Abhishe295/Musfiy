@@ -48,7 +48,26 @@ const trackSchema = new mongoose.Schema(
     duration: {
       type: Number, // in seconds
       default: 0,
-    }
+    },
+
+    // --- Feature 1: waveform scrubbing ---
+    // Array of [min, max] amplitude pairs (one per time-bucket), extracted
+    // once at upload time so the client never has to decode raw audio just
+    // to draw a waveform.
+    waveformPeaks: {
+      type: [[Number]],
+      default: [],
+    },
+
+    // --- Feature 2: acoustic-similarity recommendations ---
+    // Real DSP-derived features (see utils/audioAnalysis.js), not an LLM
+    // guess — used for cosine-similarity "sounds like this" matching.
+    audioFeatures: {
+      energy: { type: Number, default: null },
+      brightness: { type: Number, default: null },
+      zcr: { type: Number, default: null },
+      tempo: { type: Number, default: null },
+    },
   },
   { timestamps: true }
 );

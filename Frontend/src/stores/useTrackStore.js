@@ -19,6 +19,12 @@ export const useTrackStore = create((set, get) => ({
 
   error: null,
 
+  // Cache of trackId -> similar-tracks results (acoustic-similarity
+  // recommendations, see Backend's /api/track/:id/similar). Cached per
+  // track so re-opening the "more like this" panel doesn't refetch.
+  similarCache: {},
+  similarLoading: {},
+
   // Fetches the first batch of tracks. Safe to call multiple times (e.g. if
   // the Dashboard mounts again) — it will only hit the network once unless
   // `force` is passed, so navigating back and forth doesn't re-fetch.
@@ -107,6 +113,35 @@ export const useTrackStore = create((set, get) => ({
         loading: false,
         error: "Failed to load emotion-based tracks",
       });
+    }
+  },
+
+  // Acoustic-similarity "more like this" — real DSP feature vectors +
+  // cosine similarity computed server-side, not an LLM guess. Cached per
+  // track so toggling the panel open/closed repeatedly is instant.
+  fetchSimilarTracks: async (trackId) => {
+    const cached = get().similarCache[trackId];
+    if (cached) return cached;
+
+    set((state) => ({
+      similarLoading: { ...state.similarLoading, [trackId]: true },
+    }));
+
+    try {
+      const res = await api.get(`/api/track/${trackId}/similar`);
+      const tracks = res.data?.success ? res.data.tracks : [];
+
+      set((state) => ({
+        similarCache: { ...state.similarCache, [trackId]: tracks },
+        similarLoading: { ...state.similarLoading, [trackId]: false },
+      }));
+
+      return tracks;
+    } catch (error) {
+      set((state) => ({
+        similarLoading: { ...state.similarLoading, [trackId]: false },
+      }));
+      return [];
     }
   },
 

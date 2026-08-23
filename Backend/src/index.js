@@ -6,6 +6,7 @@ import authRoutes from './routes/authRoutes.js';
 import trackRoutes from './routes/trackRoutes.js';
 import playlistRoutes from "./routes/playlistRoutes.js";
 import statsRoutes from "./routes/statsRoutes.js";
+import transitionRoutes from "./routes/transitionRoutes.js";
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -49,6 +50,7 @@ app.use("/api/playlist", playlistRoutes);
 app.use("/api/stats", statsRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/track', trackRoutes);
+app.use('/api/transition', transitionRoutes);
 
 connectDB().then(() => {
   app.listen(PORT, () => {

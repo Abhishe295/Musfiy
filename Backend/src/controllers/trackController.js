@@ -4,6 +4,8 @@ import fs from "fs";
 import path from "path";
 import cloudinary from "../config/cloudinary.js";
 import streamifier from "streamifier";
+import { analyzeAudioBuffer } from "../utils/audioAnalysis.js";
+import { cosineSimilarity, zScoreNormalize } from "../utils/similarity.js";
 
 // Sensible batch-size guardrails so a caller can't request the whole
 // library in one shot (which was the root cause of the slow initial load).
@@ -110,7 +112,14 @@ export const uploadTrack = async (req, res) => {
         streamifier.createReadStream(req.file.buffer).pipe(stream);
       });
 
-    const result = await uploadStream();
+    // Run the Cloudinary upload and local audio analysis concurrently —
+    // they're independent of each other (analysis reads the buffer that's
+    // already in memory, it doesn't need the Cloudinary URL), so there's
+    // no reason to make the upload wait on the analysis or vice versa.
+    const [result, analysis] = await Promise.all([
+      uploadStream(),
+      analyzeAudioBuffer(req.file.buffer),
+    ]);
 
     const fileUrl = result.secure_url;
 
@@ -120,6 +129,8 @@ export const uploadTrack = async (req, res) => {
       emotionTag: emotionTag || null,
       fileUrl,
       uploadedBy: req.user?._id || null,
+      waveformPeaks: analysis.peaks,
+      audioFeatures: analysis.features,
     });
 
     if (req.user) {
@@ -217,5 +228,64 @@ export const timePlayed = async (req, res) => {
     return res.status(500).json({ success: false });
   }
 }
+
+// Cap on how many candidate tracks we brute-force compare against. At this
+// scale (a few hundred tracks) a full scan + in-memory cosine similarity
+// is fast and simple. If the library grows into the tens of thousands,
+// this is the point where you'd swap in a real vector index (pgvector,
+// Pinecone, etc.) instead of raising the cap.
+const SIMILARITY_CANDIDATE_CAP = 500;
+
+export const getSimilarTracks = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 8, 30);
+
+    const seed = await Track.findById(id).select("audioFeatures").lean();
+    if (!seed?.audioFeatures || seed.audioFeatures.energy == null) {
+      return res.status(404).json({
+        success: false,
+        message: "No audio analysis available for this track yet",
+      });
+    }
+
+    const candidates = await Track.find({
+      _id: { $ne: id },
+      "audioFeatures.energy": { $ne: null },
+    })
+      .select("title artist fileUrl emotionTag audioFeatures waveformPeaks")
+      .limit(SIMILARITY_CANDIDATE_CAP)
+      .lean();
+
+    if (!candidates.length) {
+      return res.status(200).json({ success: true, tracks: [] });
+    }
+
+    const toVector = (f) => [f.energy, f.brightness, f.zcr, f.tempo];
+    const allVectors = [
+      toVector(seed.audioFeatures),
+      ...candidates.map((c) => toVector(c.audioFeatures)),
+    ];
+
+    const [seedVec, ...candidateVecs] = zScoreNormalize(allVectors);
+
+    const ranked = candidates
+      .map((track, i) => ({
+        track,
+        score: cosineSimilarity(seedVec, candidateVecs[i]),
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(({ track, score }) => ({
+        ...track,
+        similarity: Math.round(score * 1000) / 1000,
+      }));
+
+    return res.status(200).json({ success: true, tracks: ranked });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+};
 
 
